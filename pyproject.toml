@@ -1,0 +1,11 @@
+[project]
+name = "pyImprov"
+version = "0.1.0"
+description = "Host a Improv wifi provisioning server"
+license = { text = "LGPL-2.1-or-later" }
+authors = [{ name = "Mimoja", email = "pyimprov@mimoja.de" }]
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["improv", "wifi", "provisioning", "ble"]
+
+dependencies = ["bless", 'dbus-next; sys_platform == "linux"']
