@@ -133,27 +133,27 @@ class ImprovProtocol:
             bytearray: Formated bytearray with length and checksum fields
         """
         response = bytearray()
-        response += command.value.to_bytes()
+        response += command.value.to_bytes(1,'little')
         # Leave space for length field
         response += b"\x00"
         for url in data:
-            response += len(url).to_bytes()
+            response += len(url).to_bytes(1,'little')
             response += url.encode("utf-8")
 
         response[1] = len(response) - 2
-        response += ImprovProtocol.calculateChecksum(response).to_bytes()
+        response += ImprovProtocol.calculateChecksum(response).to_bytes(1,'little')
         return response
 
     def handle_read(self, uuid: str) -> bytearray:
         match uuid:
             case ImprovUUID.STATUS_UUID.value:
-                return bytearray(self.state.value.to_bytes())
+                return bytearray(self.state.value.to_bytes(1,'little'))
             case ImprovUUID.CAPABILITIES_UUID.value:
                 if self.identify_callback != None:
                     return bytearray([0x01])
                 return bytearray([0x01])
             case ImprovUUID.ERROR_UUID.value:
-                return bytearray(self.last_error.value.to_bytes())
+                return bytearray(self.last_error.value.to_bytes(1,'little'))
             case ImprovUUID.RPC_RESULT_UUID.value:
                 return self.rpc_response
             case _:
@@ -197,7 +197,7 @@ class ImprovProtocol:
                     case ImprovCommand.GET_CURRENT_STATE:
                         self.rpc_response = ImprovProtocol.build_rpc_response(
                             ImprovCommand.GET_CURRENT_STATE, [
-                                self.state.value.to_bytes()]
+                                self.state.value.to_bytes(1,'little')]
                         )
                     case ImprovCommand.GET_DEVICE_INFO:
                         print(
@@ -212,7 +212,7 @@ class ImprovProtocol:
                 if self.last_error != ImprovError.NONE:
                     print(
                         f"An error occured during execution: {self.last_error}")
-                    return (ImprovUUID.ERROR_UUID.value, bytearray(self.last_error.value.to_bytes()))
+                    return (ImprovUUID.ERROR_UUID.value, bytearray(self.last_error.value.to_bytes(1,'little')))
                 print(f"RPC response: {self.rpc_response}")
                 return (ImprovUUID.RPC_RESULT_UUID.value, self.rpc_response)
             # Not our UUID
