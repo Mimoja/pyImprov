@@ -48,15 +48,15 @@ def build_gatt():
             },
             ImprovUUID.RPC_COMMAND_UUID.value: {
                 "Properties": (GATTCharacteristicProperties.read |
-                               GATTCharacteristicProperties.write),
+                               GATTCharacteristicProperties.write |
+                               GATTCharacteristicProperties.write_without_response),
                 "Permissions": (GATTAttributePermissions.readable |
                                 GATTAttributePermissions.writeable)
             },
             ImprovUUID.RPC_RESULT_UUID.value: {
                 "Properties": (GATTCharacteristicProperties.read |
                                GATTCharacteristicProperties.notify),
-                "Permissions": (GATTAttributePermissions.readable |
-                                GATTAttributePermissions.writeable)
+                "Permissions": (GATTAttributePermissions.readable)
             },
             ImprovUUID.CAPABILITIES_UUID.value: {
                 "Properties": (GATTCharacteristicProperties.read),
