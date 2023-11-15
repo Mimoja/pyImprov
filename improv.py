@@ -110,13 +110,13 @@ class ImprovProtocol:
             # We need at least one byte for the pw length
             if ssid_end >= len(data) - 1:
                 return (command,)
-            ssid = data[3: ssid_end]
+            ssid = bytearray(data[3: ssid_end])
 
             password_length = data[ssid_end]
             password_start = ssid_end + 1
             if password_start + password_length >= len(data):
                 return (command,)
-            password = data[password_start: password_start + password_length]
+            password = bytearray(data[password_start: password_start + password_length])
 
             return (command, ssid, password)
 

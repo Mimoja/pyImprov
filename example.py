@@ -112,7 +112,7 @@ def read_request(
 
 def write_request(
         characteristic: BlessGATTCharacteristic,
-        value: Any,
+        value: bytearray,
         **kwargs
 ):
 
