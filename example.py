@@ -66,8 +66,15 @@ def build_gatt():
     }
     return gatt
 
+"""
+ Names longer than 10 characters will result in bless
+ only advertising the name without the UUIDs on macOS,
+ leading to a break with the Improv spec:
 
-SERVICE_NAME = "My Wifi Connect"
+ Bluetooth LE Advertisement
+The device MUST advertise the Service UUID.
+"""
+SERVICE_NAME = "Improv"
 
 loop = asyncio.get_event_loop()
 server = BlessServer(name=SERVICE_NAME, loop=loop)
