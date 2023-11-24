@@ -99,6 +99,11 @@ class ImprovProtocol:
             return (ImprovCommand.UNKNOWN,)
 
         logging.info(f"Command recieved: {command}")
+        if len(data) == 1:
+            if command == ImprovCommand.WIFI_SETTINGS:
+                logger.warning("WIFI settings command without payload")
+                return (ImprovCommand.UNKNOWN,)
+            return (command,)
         length = data[1]
 
         if (length != len(data) - 3):
@@ -125,44 +130,57 @@ class ImprovProtocol:
             password_start = ssid_end + 1
             if password_start + password_length >= len(data):
                 return (command,)
-            password = bytearray(data[password_start: password_start + password_length])
+            password = bytearray(
+                data[password_start: password_start + password_length])
 
             return (command, ssid, password)
 
         return (command,)
 
-    def build_rpc_response(command: ImprovCommand, data: list[str]) -> bytearray:
+    def build_rpc_response(self, command: ImprovCommand, data: list[str]) -> bytearray:
         """Builds an bytearray from an command and data to be passed to the caller
 
         Args:
             command (ImprovCommand): The RPC command this is answering
             data (list[str]): data to be passed to the caller, e.g. redirect urls 
-            
+
         Returns:
             bytearray: Formated bytearray with length and checksum fields
         """
-        response = bytearray()
-        response += command.value.to_bytes(1,'little')
+        responses = []
+        current_response = bytearray()
+        current_response += command.value.to_bytes(1, 'little')
         # Leave space for length field
-        response += b"\x00"
-        for url in data:
-            response += len(url).to_bytes(1,'little')
-            response += url.encode("utf-8")
+        current_response += b"\x00"
+        for component in data:
+            if len(current_response) - 2 + 1 + len(component) > self.max_response_bytes:
+                current_response[1] = len(current_response) - 2
+                current_response += self.calculateChecksum(
+                    current_response).to_bytes(1, 'little')
+                # Add finished response to answer field
+                if len(current_response) <= self.max_response_bytes:
+                    responses.append(current_response)
+                # Create new response
+                current_response = bytearray()
+                current_response += command.value.to_bytes(1, 'little')
+                # Leave space for length field
+                current_response += b"\x00"
 
-        response[1] = len(response) - 2
-        response += ImprovProtocol.calculateChecksum(response).to_bytes(1,'little')
-        return response
+            current_response += len(component).to_bytes(1, 'little')
+            current_response += component.encode("utf-8")
+
+        return responses
 
     def handle_read(self, uuid: str) -> bytearray:
         match uuid:
             case ImprovUUID.STATUS_UUID.value:
-                return bytearray(self.state.value.to_bytes(1,'little'))
+                return bytearray(self.state.value.to_bytes(1, 'little'))
             case ImprovUUID.CAPABILITIES_UUID.value:
                 if self.identify_callback != None:
                     return bytearray([0x01])
                 return bytearray([0x01])
             case ImprovUUID.ERROR_UUID.value:
-                return bytearray(self.last_error.value.to_bytes(1,'little'))
+                return bytearray(self.last_error.value.to_bytes(1, 'little'))
             case ImprovUUID.RPC_RESULT_UUID.value:
                 return self.rpc_response
             case _:
