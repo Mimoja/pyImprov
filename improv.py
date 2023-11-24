@@ -58,7 +58,13 @@ class ImprovUUID(Enum):
 class ImprovProtocol:
     VERSION = 1
 
-    def __init__(self, wifi_connect_callback, requires_authorization: bool = False) -> None:
+    def __init__(self, wifi_connect_callback,
+                 requires_authorization: bool = False,
+                 identify_callbackindentify_callback=None,
+                 wifi_networks_callback=None,
+                 device_info_callback=None,
+                 max_response_bytes=20,
+                 ) -> None:
         self.requires_authorization = requires_authorization
         if requires_authorization:
             self.state = ImprovState.AWAITING_AUTHORIZATION
@@ -66,16 +72,19 @@ class ImprovProtocol:
             self.state = ImprovState.AUTHORIZED
         self.identify_callback = None
         self.wifi_connect_callback = wifi_connect_callback
+        self.wifi_networks_callback = wifi_networks_callback
+        self.device_info_callback = device_info_callback
         self.last_error = ImprovError.NONE
         self.rpc_response = b""
+        self.max_response_bytes = max_response_bytes
 
-    def calculateChecksum(data: bytearray) -> int:
+    def calculateChecksum(self, data: bytearray) -> int:
         calculated_checksum = 0
         for b in data:
             calculated_checksum += b
         return (calculated_checksum & 0xFF)
 
-    def parse_improv_data(data: bytearray) -> tuple:
+    def parse_improv_data(self, data: bytearray) -> tuple:
         """Boundschecks and Parses a raw bytearray into an RPC command
 
         Args:
@@ -97,7 +106,7 @@ class ImprovProtocol:
             return (ImprovCommand.UNKNOWN,)
 
         checksum = data[-1]
-        calculated_checksum = ImprovProtocol.calculateChecksum(data[:-1])
+        calculated_checksum = self.calculateChecksum(data[:-1])
 
         if ((calculated_checksum & 0xFF) != checksum):
             logging.warning(
@@ -163,7 +172,7 @@ class ImprovProtocol:
         match uuid:
             case ImprovUUID.RPC_COMMAND_UUID.value:
                 self.last_error = ImprovError.NONE
-                parsed = ImprovProtocol.parse_improv_data(data)
+                parsed = self.parse_improv_data(data)
                 command = parsed[0]
 
                 match command:
@@ -182,7 +191,7 @@ class ImprovProtocol:
                                 rpc_urls = self.wifi_connect_callback(
                                     ssid, password)
                                 if rpc_urls != None:
-                                    self.rpc_response = ImprovProtocol.build_rpc_response(
+                                    self.rpc_response = self.build_rpc_response(
                                         ImprovCommand.WIFI_SETTINGS, rpc_urls)
                                 else:
                                     self.last_error = ImprovError.UNABLE_TO_CONNECT
@@ -191,28 +200,44 @@ class ImprovProtocol:
                     case ImprovCommand.IDENTIFY:
                         if self.identify_callback != None:
                             self.identify_callback()
-                            return (None, None)
                         else:
                             self.last_error = ImprovError.INVALID_RPC
                     case ImprovCommand.GET_CURRENT_STATE:
-                        self.rpc_response = ImprovProtocol.build_rpc_response(
+                        self.rpc_response = self.build_rpc_response(
                             ImprovCommand.GET_CURRENT_STATE, [
-                                self.state.value.to_bytes(1,'little')]
+                                self.state.value.to_bytes(1, 'little')]
                         )
                     case ImprovCommand.GET_DEVICE_INFO:
-                        print(
-                            "Client requested GET_DEVICE_INFO but it is not implemented")
-                        self.last_error = ImprovError.UNKNOWN_RPC
+                        if self.device_info_callback != None:
+                            self.device_info_callback()
+                            device_info = self.device_info_callback()
+                            if device_info != None:
+                                self.rpc_response = self.build_rpc_response(
+                                    ImprovCommand.GET_DEVICE_INFO, device_info)
+                            else:
+                                self.last_error = ImprovError.UNKNOWN
+                        else:
+                            print(
+                                "Client requested GET_DEVICE_INFO but it is not implemented")
+                            self.last_error = ImprovError.UNKNOWN_RPC
                     case ImprovCommand.GET_WIFI_NETWORKS:
-                        print(
-                            "Client requested GET_WIFI_NETWORKS but it is not implemented")
-                        self.last_error = ImprovError.UNKNOWN_RPC
+                        if self.wifi_networks_callback != None:
+                            wifi_networks = self.wifi_networks_callback()
+                            if wifi_networks != None:
+                                self.rpc_response = self.build_rpc_response(
+                                    ImprovCommand.GET_WIFI_NETWORKS, wifi_networks)
+                            else:
+                                self.last_error = ImprovError.UNKNOWN
+                        else:
+                            print(
+                                "Client requested GET_WIFI_NETWORKS but it is not implemented")
+                            self.last_error = ImprovError.UNKNOWN_RPC
                     case _:
                         self.last_error = ImprovError.UNKNOWN_RPC
                 if self.last_error != ImprovError.NONE:
                     print(
                         f"An error occured during execution: {self.last_error}")
-                    return (ImprovUUID.ERROR_UUID.value, bytearray(self.last_error.value.to_bytes(1,'little')))
+                    return (ImprovUUID.ERROR_UUID.value, bytearray(self.last_error.value.to_bytes(1, 'little')))
                 print(f"RPC response: {self.rpc_response}")
                 return (ImprovUUID.RPC_RESULT_UUID.value, self.rpc_response)
             # Not our UUID
