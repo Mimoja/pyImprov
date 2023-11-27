@@ -63,7 +63,7 @@ class ImprovProtocol:
                  identify_callbackindentify_callback=None,
                  wifi_networks_callback=None,
                  device_info_callback=None,
-                 max_response_bytes=20,
+                 max_response_bytes=100,
                  ) -> None:
         self.requires_authorization = requires_authorization
         if requires_authorization:
@@ -169,6 +169,10 @@ class ImprovProtocol:
             current_response += len(component).to_bytes(1, 'little')
             current_response += component.encode("utf-8")
 
+        current_response[1] = len(current_response) - 2
+        current_response += self.calculateChecksum(
+            current_response).to_bytes(1, 'little')
+        responses.append(current_response)
         return responses
 
     def handle_read(self, uuid: str) -> bytearray:
@@ -235,7 +239,7 @@ class ImprovProtocol:
                             else:
                                 self.last_error = ImprovError.UNKNOWN
                         else:
-                            print(
+                            logger.warning(
                                 "Client requested GET_DEVICE_INFO but it is not implemented")
                             self.last_error = ImprovError.UNKNOWN_RPC
                     case ImprovCommand.GET_WIFI_NETWORKS:
@@ -247,16 +251,16 @@ class ImprovProtocol:
                             else:
                                 self.last_error = ImprovError.UNKNOWN
                         else:
-                            print(
+                            logger.warning(
                                 "Client requested GET_WIFI_NETWORKS but it is not implemented")
                             self.last_error = ImprovError.UNKNOWN_RPC
                     case _:
                         self.last_error = ImprovError.UNKNOWN_RPC
                 if self.last_error != ImprovError.NONE:
-                    print(
+                    logger.warning(
                         f"An error occured during execution: {self.last_error}")
                     return (ImprovUUID.ERROR_UUID.value, bytearray(self.last_error.value.to_bytes(1, 'little')))
-                print(f"RPC response: {self.rpc_response}")
+                logger.warning(f"RPC response: {self.rpc_response}")
                 return (ImprovUUID.RPC_RESULT_UUID.value, self.rpc_response)
             # Not our UUID
             case _:
