@@ -8,6 +8,7 @@ from bless import (  # type: ignore
     GATTCharacteristicProperties,
     GATTAttributePermissions
 )
+from bless.backends.bluezdbus.server import BlessServerBlueZDBus
 from typing import Any, Dict, Union, Optional
 import sys
 import threading
@@ -138,6 +139,14 @@ async def run(loop):
 
     server.read_request_func = read_request
     server.write_request_func = write_request
+
+    if isinstance(server, BlessServerBlueZDBus):
+        await server.setup_task
+        interface = server.adapter.get_interface('org.bluez.Adapter1')
+        powered = await interface.get_powered()
+        if not powered:
+            logger.info("bluetooth device is not powered, powering now!")
+            await interface.set_powered(True)
 
     await server.add_gatt(build_gatt())
     await server.start()
