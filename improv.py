@@ -260,7 +260,7 @@ class ImprovProtocol:
                     logger.warning(
                         f"An error occured during execution: {self.last_error}")
                     return (ImprovUUID.ERROR_UUID.value, bytearray(self.last_error.value.to_bytes(1, 'little')))
-                logger.warning(f"RPC response: {self.rpc_response}")
+                logger.debug(f"RPC response: {self.rpc_response}")
                 return (ImprovUUID.RPC_RESULT_UUID.value, self.rpc_response)
             # Not our UUID
             case _:
