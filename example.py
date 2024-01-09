@@ -123,6 +123,8 @@ def write_request(
         if target_uuid != None and target_value != None:
             logging.debug(
                 f"Setting {ImprovUUID(target_uuid)} to {target_value}")
+            if isinstance(target_value, list):
+                target_value = target_value[0]
             server.get_characteristic(
                 target_uuid,
             ).value = target_value
