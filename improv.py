@@ -210,9 +210,11 @@ class ImprovProtocol:
                             if self.wifi_connect_callback == None:
                                 self.last_error = ImprovError.UNABLE_TO_CONNECT
                             else:
+                                self.state = ImprovState.PROVISIONING
                                 rpc_urls = self.wifi_connect_callback(
                                     ssid, password)
                                 if rpc_urls != None:
+                                    self.state = ImprovState.PROVISIONED
                                     self.rpc_response = self.build_rpc_response(
                                         ImprovCommand.WIFI_SETTINGS, rpc_urls)
                                 else:

@@ -15,7 +15,7 @@ logger = logging.getLogger(name=__name__)
 def wifi_connect_callback(ssid: str, passwd: str) -> Optional[list[str]]:
     return ["http://SucessfullConnect.com"]
 
-improv_server = ImprovProtocol(wifi_connect_callback=wifi_connect_callback)
+improv_server = ImprovProtocol(wifi_connect_callback=wifi_connect_callback, max_response_bytes=50)
 
 
 def selftest():
@@ -41,9 +41,11 @@ def selftest():
     logging.debug(improv_server.handle_write(
         ImprovUUID.RPC_COMMAND_UUID.value, improv_data))
 
-    rpc_urls = ["http://my-meticulous.local", "http://dummy"]
+    rpc_urls = ['http://10.10.0.104', 'http://fd71:d091:1219:d546:3b75:493:9940:cd98', 'http://fe80::6ff3:4aa2:2e7:4d80']
     response= improv_server.build_rpc_response(
-        ImprovCommand.WIFI_SETTINGS, rpc_urls)
+        ImprovCommand.WIFI_SETTINGS, rpc_urls, )
+    logging.debug("Encoding RPC urls:")
+    logging.debug(rpc_urls)
     logging.debug(response)
 
     ssid = b"1234"
