@@ -118,22 +118,22 @@ def write_request(
 ):
 
     if characteristic.service_uuid == ImprovUUID.SERVICE_UUID.value:
-        (target_uuid, target_value) = improv_server.handle_write(
+        (target_uuid, target_values) = improv_server.handle_write(
             characteristic.uuid, value)
-        if target_uuid != None and target_value != None:
-            logging.debug(
-                f"Setting {ImprovUUID(target_uuid)} to {target_value}")
-            server.get_characteristic(
-                target_uuid,
-            ).value = target_value
-            success = server.update_value(
-                ImprovUUID.SERVICE_UUID.value,
-                target_uuid
-            )
-            if not success:
-                logging.warning(
-                    f"Updating characteristic return status={success}")
-
+        if target_uuid != None and target_values != None:
+            for value in target_values:
+                logger.debug(
+                    f"Setting {ImprovUUID(target_uuid)} to {value}")
+                server.get_characteristic(
+                    target_uuid,
+                ).value = value
+                success = server.update_value(
+                    ImprovUUID.SERVICE_UUID.value,
+                    target_uuid
+                )
+                if not success:
+                    logger.warning(
+                        f"Updating characteristic return status={success}")
 
 async def run(loop):
 

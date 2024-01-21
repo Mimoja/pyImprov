@@ -60,7 +60,7 @@ class ImprovProtocol:
 
     def __init__(self, wifi_connect_callback,
                  requires_authorization: bool = False,
-                 identify_callbackindentify_callback=None,
+                 indentify_callback=None,
                  wifi_networks_callback=None,
                  device_info_callback=None,
                  max_response_bytes=100,
