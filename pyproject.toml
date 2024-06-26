@@ -1,6 +1,6 @@
 [project]
 name = "pyImprov"
-version = "0.1.0"
+version = "0.1.1"
 description = "Host a Improv wifi provisioning server"
 license = { text = "LGPL-2.1-or-later" }
 authors = [{ name = "Mimoja", email = "pyimprov@mimoja.de" }]
