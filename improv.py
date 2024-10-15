@@ -218,6 +218,7 @@ class ImprovProtocol:
                                     self.rpc_response = self.build_rpc_response(
                                         ImprovCommand.WIFI_SETTINGS, rpc_urls)
                                 else:
+                                    self.state = ImprovState.AUTHORIZED
                                     self.last_error = ImprovError.UNABLE_TO_CONNECT
                         else:
                             self.last_error = ImprovError.INVALID_RPC
