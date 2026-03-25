@@ -1,23 +1,40 @@
 # pyImprov
 
-POC implementation of the Improv-wifi protocol in python3.10
+Implementation of the [Improv-wifi](https://www.improv-wifi.com/) protocol in Python 3.10+
 
+## Installation
 
-### Installation
-pyImprov is available through pypi:
-```
+pyImprov is available through PyPI:
+
+```bash
 pip install pyImprov
 ```
 
-To run from this folder
+## Development
 
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management.
+
+```bash
+# Install dependencies (creates .venv automatically)
+uv sync
+
+# Run the example
+uv run python example.py
+
+# Run tests
+uv run pytest -v
+
+# Lint
+uv run ruff check .
+
+# Format
+uv run black .
 ```
-pip install venv
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-You can then run the example with 
-```
-python3 example.py
+
+### Pre-commit hooks
+
+Ruff and Black run automatically on every commit via pre-commit:
+
+```bash
+uv run pre-commit install
 ```

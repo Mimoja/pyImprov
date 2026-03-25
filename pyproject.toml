@@ -9,3 +9,29 @@ requires-python = ">=3.10"
 keywords = ["improv", "wifi", "provisioning", "ble"]
 
 dependencies = ["bless", 'dbus-next; sys_platform == "linux"']
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+include = ["improv.py"]
+
+[dependency-groups]
+dev = ["pytest>=8.0.0", "ruff>=0.11.0", "black>=25.0.0", "pre-commit>=4.0.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+target-version = "py310"
+exclude = ["example.py", "mini-selftest.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.black]
+target-version = ["py310"]
+line-length = 88
