@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-from enum import Enum
+from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
+from enum import Enum
+from typing import cast
 
 logger = logging.getLogger(name=__name__)
 
@@ -55,47 +57,59 @@ class ImprovUUID(Enum):
     CAPABILITIES_UUID = "00467768-6228-2272-4663-277478268005"
 
 
-class ImprovProtocol:
-    VERSION = 1
+WifiConnectCallback = Callable[[bytearray, bytearray], list[str] | None]
+IdentifyCallback = Callable[[], None]
+WifiNetworksCallback = Callable[[], list[str] | None]
+DeviceInfoCallback = Callable[[], list[str] | None]
 
-    def __init__(self, wifi_connect_callback,
-                 requires_authorization: bool = False,
-                 indentify_callback=None,
-                 wifi_networks_callback=None,
-                 device_info_callback=None,
-                 max_response_bytes=100,
-                 ) -> None:
-        self.requires_authorization = requires_authorization
+
+class ImprovProtocol:
+    VERSION: int = 1
+
+    def __init__(
+        self,
+        wifi_connect_callback: WifiConnectCallback,
+        requires_authorization: bool = False,
+        identify_callback: IdentifyCallback | None = None,
+        wifi_networks_callback: WifiNetworksCallback | None = None,
+        device_info_callback: DeviceInfoCallback | None = None,
+        max_response_bytes: int = 100,
+    ) -> None:
+        self.requires_authorization: bool = requires_authorization
         if requires_authorization:
-            self.state = ImprovState.AWAITING_AUTHORIZATION
+            self.state: ImprovState = ImprovState.AWAITING_AUTHORIZATION
         else:
             self.state = ImprovState.AUTHORIZED
-        self.identify_callback = None
-        self.wifi_connect_callback = wifi_connect_callback
-        self.wifi_networks_callback = wifi_networks_callback
-        self.device_info_callback = device_info_callback
-        self.last_error = ImprovError.NONE
-        self.rpc_response = b""
-        self.max_response_bytes = max_response_bytes
+        self.identify_callback: IdentifyCallback | None = identify_callback
+        self.wifi_connect_callback: WifiConnectCallback = wifi_connect_callback
+        self.wifi_networks_callback: WifiNetworksCallback | None = (
+            wifi_networks_callback
+        )
+        self.device_info_callback: DeviceInfoCallback | None = device_info_callback
+        self.last_error: ImprovError = ImprovError.NONE
+        self.rpc_response: bytes | list[bytearray] = b""
+        self.max_response_bytes: int = max_response_bytes
 
-    def calculateChecksum(self, data: bytearray) -> int:
-        calculated_checksum = 0
+    def calculateChecksum(self, data: bytearray | bytes) -> int:
+        calculated_checksum: int = 0
         for b in data:
             calculated_checksum += b
-        return (calculated_checksum & 0xFF)
+        return calculated_checksum & 0xFF
 
-    def parse_improv_data(self, data: bytearray) -> tuple:
+    def parse_improv_data(
+        self, data: bytearray
+    ) -> tuple[ImprovCommand, ...] | tuple[ImprovCommand, bytearray, bytearray]:
         """Boundschecks and Parses a raw bytearray into an RPC command
 
         Args:
-            data (bytearray): raw ble data
+            data: raw ble data
 
         Returns:
             tuple: First entry for the command, following entries are parameters
         """
         try:
             command = ImprovCommand(data[0])
-        except ValueError as verr:
+        except ValueError:
             return (ImprovCommand.UNKNOWN,)
 
         logging.info(f"Command recieved: {command}")
@@ -104,98 +118,113 @@ class ImprovProtocol:
                 logger.warning("WIFI settings command without payload")
                 return (ImprovCommand.UNKNOWN,)
             return (command,)
-        length = data[1]
+        length: int = data[1]
 
-        if (length != len(data) - 3):
+        if length != len(data) - 3:
             logging.warning(f"length mismatch: {length}  != {len(data) - 3}")
             return (ImprovCommand.UNKNOWN,)
 
-        checksum = data[-1]
-        calculated_checksum = self.calculateChecksum(data[:-1])
+        checksum: int = data[-1]
+        calculated_checksum: int = self.calculateChecksum(data[:-1])
 
-        if ((calculated_checksum & 0xFF) != checksum):
+        if (calculated_checksum & 0xFF) != checksum:
             logging.warning(
-                f"Checksums are {hex(checksum)} and {hex(calculated_checksum)}")
+                f"Checksums are {hex(checksum)} and {hex(calculated_checksum)}"
+            )
             return (ImprovCommand.BAD_CHECKSUM,)
 
-        if (command == ImprovCommand.WIFI_SETTINGS):
-            ssid_length = data[2]
-            ssid_end = 3 + ssid_length
+        if command == ImprovCommand.WIFI_SETTINGS:
+            ssid_length: int = data[2]
+            ssid_end: int = 3 + ssid_length
             # We need at least one byte for the pw length
             if ssid_end >= len(data) - 1:
                 return (command,)
-            ssid = bytearray(data[3: ssid_end])
+            ssid: bytearray = bytearray(data[3:ssid_end])
 
-            password_length = data[ssid_end]
-            password_start = ssid_end + 1
+            password_length: int = data[ssid_end]
+            password_start: int = ssid_end + 1
             if password_start + password_length >= len(data):
                 return (command,)
-            password = bytearray(
-                data[password_start: password_start + password_length])
+            password: bytearray = bytearray(
+                data[password_start : password_start + password_length]
+            )
 
             return (command, ssid, password)
 
         return (command,)
 
-    def build_rpc_response(self, command: ImprovCommand, data: list[str]) -> bytearray:
+    def build_rpc_response(
+        self, command: ImprovCommand, data: Sequence[str | bytes]
+    ) -> list[bytearray]:
         """Builds an bytearray from an command and data to be passed to the caller
 
         Args:
-            command (ImprovCommand): The RPC command this is answering
-            data (list[str]): data to be passed to the caller, e.g. redirect urls 
+            command: The RPC command this is answering
+            data: data to be passed to the caller (str or bytes entries)
 
         Returns:
-            bytearray: Formated bytearray with length and checksum fields
+            list of bytearrays with length and checksum fields
         """
-        responses = []
-        current_response = bytearray()
-        current_response += command.value.to_bytes(1, 'little')
+        responses: list[bytearray] = []
+        current_response: bytearray = bytearray()
+        current_response += command.value.to_bytes(1, "little")
         # Leave space for length field
         current_response += b"\x00"
         for component in data:
-            if len(current_response) - 2 + 1 + len(component) > self.max_response_bytes:
+            encoded_component: bytes = (
+                component.encode("utf-8")
+                if isinstance(component, str)
+                else bytes(component)
+            )
+            encoded_length: int = len(encoded_component)
+
+            if len(current_response) - 2 + 1 + encoded_length > self.max_response_bytes:
                 current_response[1] = len(current_response) - 2
-                current_response += self.calculateChecksum(
-                    current_response).to_bytes(1, 'little')
+                current_response += self.calculateChecksum(current_response).to_bytes(
+                    1, "little"
+                )
                 # Add finished response to answer field
                 if len(current_response) <= self.max_response_bytes:
                     responses.append(current_response)
                 # Create new response
                 current_response = bytearray()
-                current_response += command.value.to_bytes(1, 'little')
+                current_response += command.value.to_bytes(1, "little")
                 # Leave space for length field
                 current_response += b"\x00"
 
-            current_response += len(component).to_bytes(1, 'little')
-            current_response += component.encode("utf-8")
+            current_response += encoded_length.to_bytes(1, "little")
+            current_response += encoded_component
 
         current_response[1] = len(current_response) - 2
-        current_response += self.calculateChecksum(
-            current_response).to_bytes(1, 'little')
+        current_response += self.calculateChecksum(current_response).to_bytes(
+            1, "little"
+        )
         responses.append(current_response)
         return responses
 
-    def handle_read(self, uuid: str) -> bytearray:
+    def handle_read(self, uuid: str) -> bytearray | bytes | list[bytearray]:
         match uuid:
             case ImprovUUID.STATUS_UUID.value:
-                return bytearray(self.state.value.to_bytes(1, 'little'))
+                return bytearray(self.state.value.to_bytes(1, "little"))
             case ImprovUUID.CAPABILITIES_UUID.value:
-                if self.identify_callback != None:
+                if self.identify_callback is not None:
                     return bytearray([0x01])
                 return bytearray([0x01])
             case ImprovUUID.ERROR_UUID.value:
-                return bytearray(self.last_error.value.to_bytes(1, 'little'))
+                return bytearray(self.last_error.value.to_bytes(1, "little"))
             case ImprovUUID.RPC_RESULT_UUID.value:
                 return self.rpc_response
             case _:
                 return bytearray()
 
-    def handle_write(self, uuid: str, data: bytearray) -> (str, bytearray):
+    def handle_write(
+        self, uuid: str, data: bytearray
+    ) -> tuple[str | None, bytearray | bytes | list[bytearray] | None]:
         match uuid:
             case ImprovUUID.RPC_COMMAND_UUID.value:
                 self.last_error = ImprovError.NONE
                 parsed = self.parse_improv_data(data)
-                command = parsed[0]
+                command: ImprovCommand = parsed[0]
 
                 match command:
                     case ImprovCommand.BAD_CHECKSUM:
@@ -204,65 +233,74 @@ class ImprovProtocol:
                         if self.state.value < ImprovState.AUTHORIZED.value:
                             self.last_error = ImprovError.NOT_AUTHORIZED
                         elif len(parsed) >= 3:
-                            ssid = parsed[1]
-                            password = parsed[2]
+                            ssid = cast(bytearray, parsed[1])
+                            password = cast(bytearray, parsed[2])
 
-                            if self.wifi_connect_callback == None:
+                            if self.wifi_connect_callback is None:
                                 self.last_error = ImprovError.UNABLE_TO_CONNECT
                             else:
                                 self.state = ImprovState.PROVISIONING
-                                rpc_urls = self.wifi_connect_callback(
-                                    ssid, password)
-                                if rpc_urls != None:
+                                rpc_urls = self.wifi_connect_callback(ssid, password)
+                                if rpc_urls is not None:
                                     self.state = ImprovState.PROVISIONED
                                     self.rpc_response = self.build_rpc_response(
-                                        ImprovCommand.WIFI_SETTINGS, rpc_urls)
+                                        ImprovCommand.WIFI_SETTINGS, rpc_urls
+                                    )
                                 else:
                                     self.state = ImprovState.AUTHORIZED
                                     self.last_error = ImprovError.UNABLE_TO_CONNECT
                         else:
                             self.last_error = ImprovError.INVALID_RPC
                     case ImprovCommand.IDENTIFY:
-                        if self.identify_callback != None:
+                        if self.identify_callback is not None:
                             self.identify_callback()
                         else:
                             self.last_error = ImprovError.INVALID_RPC
                     case ImprovCommand.GET_CURRENT_STATE:
                         self.rpc_response = self.build_rpc_response(
-                            ImprovCommand.GET_CURRENT_STATE, [
-                                self.state.value.to_bytes(1, 'little')]
+                            ImprovCommand.GET_CURRENT_STATE,
+                            [self.state.value.to_bytes(1, "little")],
                         )
                     case ImprovCommand.GET_DEVICE_INFO:
-                        if self.device_info_callback != None:
-                            self.device_info_callback()
+                        if self.device_info_callback is not None:
                             device_info = self.device_info_callback()
-                            if device_info != None:
+                            if device_info is not None:
                                 self.rpc_response = self.build_rpc_response(
-                                    ImprovCommand.GET_DEVICE_INFO, device_info)
+                                    ImprovCommand.GET_DEVICE_INFO, device_info
+                                )
                             else:
                                 self.last_error = ImprovError.UNKNOWN
                         else:
                             logger.warning(
-                                "Client requested GET_DEVICE_INFO but it is not implemented")
+                                "Client requested GET_DEVICE_INFO"
+                                " but it is not implemented"
+                            )
                             self.last_error = ImprovError.UNKNOWN_RPC
                     case ImprovCommand.GET_WIFI_NETWORKS:
-                        if self.wifi_networks_callback != None:
+                        if self.wifi_networks_callback is not None:
                             wifi_networks = self.wifi_networks_callback()
-                            if wifi_networks != None:
+                            if wifi_networks is not None:
                                 self.rpc_response = self.build_rpc_response(
-                                    ImprovCommand.GET_WIFI_NETWORKS, wifi_networks)
+                                    ImprovCommand.GET_WIFI_NETWORKS, wifi_networks
+                                )
                             else:
                                 self.last_error = ImprovError.UNKNOWN
                         else:
                             logger.warning(
-                                "Client requested GET_WIFI_NETWORKS but it is not implemented")
+                                "Client requested GET_WIFI_NETWORKS"
+                                " but it is not implemented"
+                            )
                             self.last_error = ImprovError.UNKNOWN_RPC
                     case _:
                         self.last_error = ImprovError.UNKNOWN_RPC
                 if self.last_error != ImprovError.NONE:
                     logger.warning(
-                        f"An error occured during execution: {self.last_error}")
-                    return (ImprovUUID.ERROR_UUID.value, bytearray(self.last_error.value.to_bytes(1, 'little')))
+                        f"An error occured during execution: {self.last_error}"
+                    )
+                    return (
+                        ImprovUUID.ERROR_UUID.value,
+                        bytearray(self.last_error.value.to_bytes(1, "little")),
+                    )
                 logger.debug(f"RPC response: {self.rpc_response}")
                 return (ImprovUUID.RPC_RESULT_UUID.value, self.rpc_response)
             # Not our UUID

@@ -1,19 +1,19 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
-from improv import *
-from bless import (  # type: ignore
-    BlessServer,
-    BlessGATTCharacteristic,
-    GATTCharacteristicProperties,
-    GATTAttributePermissions
-)
-from bless.backends.bluezdbus.server import BlessServerBlueZDBus
-from typing import Any, Dict, Union, Optional
-import sys
-import threading
 import asyncio
 import logging
+import sys
+import threading
+
+from bless import (  # type: ignore
+    BlessGATTCharacteristic,
+    BlessServer,
+    GATTAttributePermissions,
+    GATTCharacteristicProperties,
+)
+from bless.backends.bluezdbus.server import BlessServerBlueZDBus
+
+from improv import *
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(name=__name__)
 
 # NOTE: Some systems require different synchronization methods.
-trigger: Union[asyncio.Event, threading.Event]
+trigger: asyncio.Event | threading.Event
 if sys.platform in ["darwin", "win32"]:
     trigger = threading.Event()
 else:
@@ -33,39 +33,54 @@ logger = logging.getLogger(name=__name__)
 
 
 def build_gatt():
-    gatt: Dict = {
+    gatt: dict = {
         ImprovUUID.SERVICE_UUID.value: {
             ImprovUUID.STATUS_UUID.value: {
-                "Properties": (GATTCharacteristicProperties.read |
-                               GATTCharacteristicProperties.notify),
-                "Permissions": (GATTAttributePermissions.readable |
-                                GATTAttributePermissions.writeable)
+                "Properties": (
+                    GATTCharacteristicProperties.read
+                    | GATTCharacteristicProperties.notify
+                ),
+                "Permissions": (
+                    GATTAttributePermissions.readable
+                    | GATTAttributePermissions.writeable
+                ),
             },
             ImprovUUID.ERROR_UUID.value: {
-                "Properties": (GATTCharacteristicProperties.read |
-                               GATTCharacteristicProperties.notify),
-                "Permissions": (GATTAttributePermissions.readable |
-                                GATTAttributePermissions.writeable)
+                "Properties": (
+                    GATTCharacteristicProperties.read
+                    | GATTCharacteristicProperties.notify
+                ),
+                "Permissions": (
+                    GATTAttributePermissions.readable
+                    | GATTAttributePermissions.writeable
+                ),
             },
             ImprovUUID.RPC_COMMAND_UUID.value: {
-                "Properties": (GATTCharacteristicProperties.read |
-                               GATTCharacteristicProperties.write |
-                               GATTCharacteristicProperties.write_without_response),
-                "Permissions": (GATTAttributePermissions.readable |
-                                GATTAttributePermissions.writeable)
+                "Properties": (
+                    GATTCharacteristicProperties.read
+                    | GATTCharacteristicProperties.write
+                    | GATTCharacteristicProperties.write_without_response
+                ),
+                "Permissions": (
+                    GATTAttributePermissions.readable
+                    | GATTAttributePermissions.writeable
+                ),
             },
             ImprovUUID.RPC_RESULT_UUID.value: {
-                "Properties": (GATTCharacteristicProperties.read |
-                               GATTCharacteristicProperties.notify),
-                "Permissions": (GATTAttributePermissions.readable)
+                "Properties": (
+                    GATTCharacteristicProperties.read
+                    | GATTCharacteristicProperties.notify
+                ),
+                "Permissions": (GATTAttributePermissions.readable),
             },
             ImprovUUID.CAPABILITIES_UUID.value: {
                 "Properties": (GATTCharacteristicProperties.read),
-                "Permissions": (GATTAttributePermissions.readable)
+                "Permissions": (GATTAttributePermissions.readable),
             },
         }
     }
     return gatt
+
 
 """
  Names longer than 10 characters will result in bless
@@ -81,25 +96,22 @@ loop = asyncio.get_event_loop()
 server = BlessServer(name=SERVICE_NAME, loop=loop)
 
 
-def wifi_connect(ssid: str, passwd: str) -> Optional[list[str]]:
+def wifi_connect(ssid: str, passwd: str) -> list[str] | None:
     logger.warning("Pretending to connect to wifi")
     logger.warning(
-        f"Connecting to '{ssid.decode('utf-8')}' with password: '{passwd.decode('utf-8')}'")
+        f"Connecting to '{ssid.decode('utf-8')}' with password: '{passwd.decode('utf-8')}'"
+    )
     logger.warning("Return None for the failure")
     localIP = "192.168.2.123"
     localServer = f"http://{localIP}"
-    logger.warning(
-        f"Asking the client to now connect to us under {localServer}")
+    logger.warning(f"Asking the client to now connect to us under {localServer}")
     return [localServer]
 
 
 improv_server = ImprovProtocol(wifi_connect_callback=wifi_connect)
 
 
-def read_request(
-        characteristic: BlessGATTCharacteristic,
-        **kwargs
-) -> bytearray:
+def read_request(characteristic: BlessGATTCharacteristic, **kwargs) -> bytearray:
     try:
         improv_char = ImprovUUID(characteristic.uuid)
         logger.info(f"Reading {improv_char} : {characteristic}")
@@ -111,29 +123,24 @@ def read_request(
     return characteristic.value
 
 
-def write_request(
-        characteristic: BlessGATTCharacteristic,
-        value: bytearray,
-        **kwargs
-):
+def write_request(characteristic: BlessGATTCharacteristic, value: bytearray, **kwargs):
 
     if characteristic.service_uuid == ImprovUUID.SERVICE_UUID.value:
-        (target_uuid, target_values) = improv_server.handle_write(
-            characteristic.uuid, value)
+        target_uuid, target_values = improv_server.handle_write(
+            characteristic.uuid, value
+        )
         if target_uuid != None and target_values != None:
             for value in target_values:
-                logger.debug(
-                    f"Setting {ImprovUUID(target_uuid)} to {value}")
+                logger.debug(f"Setting {ImprovUUID(target_uuid)} to {value}")
                 server.get_characteristic(
                     target_uuid,
                 ).value = value
                 success = server.update_value(
-                    ImprovUUID.SERVICE_UUID.value,
-                    target_uuid
+                    ImprovUUID.SERVICE_UUID.value, target_uuid
                 )
                 if not success:
-                    logger.warning(
-                        f"Updating characteristic return status={success}")
+                    logger.warning(f"Updating characteristic return status={success}")
+
 
 async def run(loop):
 
@@ -142,7 +149,7 @@ async def run(loop):
 
     if isinstance(server, BlessServerBlueZDBus):
         await server.setup_task
-        interface = server.adapter.get_interface('org.bluez.Adapter1')
+        interface = server.adapter.get_interface("org.bluez.Adapter1")
         powered = await interface.get_powered()
         if not powered:
             logger.info("bluetooth device is not powered, powering now!")
@@ -163,6 +170,7 @@ async def run(loop):
         logger.debug("Shutting Down")
         pass
     await server.stop()
+
 
 # Actually start the server
 try:
